@@ -1,0 +1,431 @@
+<div id="tj-root">
+  <h2 class="sr-only">Trading journal: import Tradovate order exports and track trade performance over time</h2>
+  <style>
+    #tj-root {
+      font-family: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+      --paper-a: #EDF2E6; --paper-b: #E3EBDB; --paper-border: #B9C7AE;
+      --ink: #1F2E22; --ink-soft: #4B5B4E; --rule: #A9834F;
+      --card-bg: #F4F7F0; --card-border: #B9C7AE;
+      --input-bg: #FDFDF9; --input-border: #C7D6BE;
+      --pill-bg: #FBF6EC; --pill-border: #A9834F; --pill-text: #6B4F23;
+      --credit: #2F6F4E; --debit: #8B2E2E;
+      --row-border: #DCE5D3; --muted-line: #C7D6BE;
+      color: var(--ink);
+    }
+    #tj-root[data-theme="dark"] {
+      --paper-a: #1B2420; --paper-b: #202B25;
+      --ink: #E6EDE3; --ink-soft: #A9B8A5; --rule: #C79A5A;
+      --card-bg: #24312B; --card-border: #3A4A3F;
+      --input-bg: #1C2621; --input-border: #3A4A3F;
+      --pill-bg: #2A2117; --pill-border: #C79A5A; --pill-text: #E3BE84;
+      --credit: #6FCB9A; --debit: #E28787;
+      --row-border: #33423A; --muted-line: #3A4A3F;
+    }
+    #tj-root .mono { font-family: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace; }
+    #tj-root button { font-family: inherit; cursor: pointer; }
+    #tj-root input, #tj-root textarea { font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace; }
+    #tj-root table { border-collapse: collapse; width: 100%; }
+    #tj-root .paper {
+      background: repeating-linear-gradient(180deg, var(--paper-a) 0px, var(--paper-a) 27px, var(--paper-b) 27px, var(--paper-b) 54px);
+      border: 1px solid var(--paper-border);
+      border-radius: 3px;
+    }
+    #tj-root ::placeholder { color: var(--ink-soft); opacity: 0.7; }
+  </style>
+
+  <div class="paper" style="padding: 28px 30px;">
+
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom: 2px solid var(--rule); padding-bottom: 12px; margin-bottom: 20px;">
+      <div>
+        <div style="font-size: 11px; letter-spacing: 2px; color:var(--ink-soft); text-transform: uppercase;">Ledger of fills</div>
+        <div style="font-size: 26px; font-weight: bold; color:var(--ink);">Trading Journal</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:14px;">
+        <div id="tj-lastupdate" class="mono" style="font-size: 12px; color:var(--ink-soft);"></div>
+        <button id="tj-theme" aria-label="Toggle light and dark mode" style="background:var(--pill-bg); border:1px solid var(--pill-border); color:var(--pill-text); font-size:12px; padding:6px 12px; border-radius:3px;">Dark mode</button>
+      </div>
+    </div>
+
+    <div id="tj-status" style="font-size: 13px; color:var(--ink-soft); margin-bottom: 14px;">Loading ledger…</div>
+
+    <div style="border: 1px solid var(--card-border); background: var(--card-bg); border-radius: 3px; padding: 16px 18px; margin-bottom: 22px;">
+      <div style="font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color:var(--ink-soft); margin-bottom: 10px;">New entry — post a day's fills</div>
+      <div style="display:flex; gap: 10px; align-items:center; margin-bottom: 10px; flex-wrap: wrap;">
+        <label style="font-size: 13px; border: 1px solid var(--pill-border); color:var(--pill-text); padding: 6px 12px; border-radius: 3px; background:var(--pill-bg);">
+          Choose CSV file
+          <input id="tj-file" type="file" accept=".csv,text/csv" style="display:none;">
+        </label>
+        <span style="font-size: 12px; color:var(--ink-soft);">or paste the CSV text below</span>
+      </div>
+      <textarea id="tj-paste" class="mono" placeholder="Symbol,Side,Type,Qty,Remaining Qty,Filled Qty,Limit Price,Stop Price,Take Profit,Stop Loss,Avg Fill Price,Status,Update Time,Order ID,Expiry,Expiry Time" style="width:100%; height:80px; box-sizing:border-box; font-size:11px; padding:8px; border:1px solid var(--input-border); border-radius:3px; background:var(--input-bg); color:var(--ink);"></textarea>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 10px;">
+        <span id="tj-parsemsg" style="font-size:12px; color:var(--debit);"></span>
+        <button id="tj-post" style="background:var(--credit); color:var(--card-bg); border:none; padding:8px 18px; border-radius:3px; font-size:13px; font-weight:bold; letter-spacing:0.5px;">Post to ledger</button>
+      </div>
+    </div>
+
+    <div id="tj-stats" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:1px; background:var(--card-border); border:1px solid var(--card-border); margin-bottom: 22px;"></div>
+
+    <div style="margin-bottom: 26px;">
+      <div style="font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color:var(--ink-soft); margin-bottom: 10px;">Equity curve</div>
+      <svg id="tj-equity" viewBox="0 0 700 200" style="width:100%; height:200px; display:block; background:var(--input-bg); border:1px solid var(--input-border); border-radius:3px;"></svg>
+    </div>
+
+    <details style="margin-bottom: 22px;">
+      <summary style="font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color:var(--ink-soft); cursor:pointer;">Contract multipliers ($ per point)</summary>
+      <div id="tj-multipliers" style="margin-top:10px; display:grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap:8px;"></div>
+    </details>
+
+    <div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <div style="font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color:var(--ink-soft);">Trade log</div>
+        <button id="tj-clear" style="background:none; border:1px solid var(--debit); color:var(--debit); font-size:11px; padding:5px 10px; border-radius:3px;">Clear all entries</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table id="tj-table" class="mono" style="font-size:12px;">
+          <thead>
+            <tr style="border-bottom: 2px solid var(--rule); text-align:left;">
+              <th style="padding:6px 8px;">Date</th>
+              <th style="padding:6px 8px;">Symbol</th>
+              <th style="padding:6px 8px;">Side</th>
+              <th style="padding:6px 8px; text-align:right;">Qty</th>
+              <th style="padding:6px 8px; text-align:right;">Entry</th>
+              <th style="padding:6px 8px; text-align:right;">Exit</th>
+              <th style="padding:6px 8px; text-align:right;">Points</th>
+              <th style="padding:6px 8px; text-align:right;">P&amp;L</th>
+            </tr>
+          </thead>
+          <tbody id="tj-tbody"></tbody>
+        </table>
+      </div>
+      <div id="tj-empty" style="display:none; text-align:center; padding: 30px 0; color:var(--ink-soft); font-size:13px;">No entries yet. Post your first day's fills above.</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  var DEFAULT_MULT = {MES:5, ES:50, MNQ:2, NQ:20, MYM:0.5, YM:5, M2K:5, RTY:50, MCL:100, CL:1000, MGC:10, GC:100, SIL:1000, SI:5000, ZB:1000, ZN:1000, ZF:1000, ZT:2000};
+
+  var state = { trades: [], multipliers: {}, theme: 'light' };
+  var root = document.getElementById('tj-root');
+
+  function rootSymbol(sym){
+    var m = sym.match(/^([A-Z0-9]+?)([FGHJKMNQUVXZ]\d{1,2})$/);
+    return m ? m[1] : sym;
+  }
+
+  function fmtMoney(n){
+    var sign = n < 0 ? '-' : '';
+    return sign + '$' + Math.abs(n).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+  function fmtPts(n){
+    var sign = n < 0 ? '-' : '';
+    return sign + Math.abs(n).toFixed(2);
+  }
+
+  function parseCSV(text){
+    var lines = text.trim().split(/\r?\n/);
+    if (lines.length < 2) return [];
+    var headers = lines[0].split(',').map(function(h){return h.trim();});
+    var rows = [];
+    for (var i=1;i<lines.length;i++){
+      if (!lines[i].trim()) continue;
+      var cols = lines[i].split(',');
+      var row = {};
+      headers.forEach(function(h,idx){ row[h] = (cols[idx]!==undefined? cols[idx].trim() : ''); });
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  function reconstructTrades(rows){
+    var fills = rows.filter(function(r){
+      return r['Status']==='Filled' && parseFloat(r['Filled Qty'])>0 && r['Avg Fill Price'];
+    }).map(function(r){
+      return {
+        symbol: r['Symbol'],
+        side: r['Side'],
+        qty: parseFloat(r['Filled Qty']),
+        price: parseFloat(r['Avg Fill Price']),
+        time: new Date(r['Update Time'].replace(' ','T')),
+        orderId: r['Order ID']
+      };
+    }).filter(function(f){ return !isNaN(f.price) && !isNaN(f.time.getTime()); });
+
+    var bySymbol = {};
+    fills.forEach(function(f){ (bySymbol[f.symbol] = bySymbol[f.symbol] || []).push(f); });
+
+    var trades = [];
+    Object.keys(bySymbol).forEach(function(symbol){
+      var list = bySymbol[symbol].slice().sort(function(a,b){ return a.time - b.time; });
+      var position = 0, current = null;
+      list.forEach(function(f){
+        var signed = f.side === 'Buy' ? f.qty : -f.qty;
+        if (Math.abs(position) < 1e-9) {
+          current = {
+            symbol: symbol,
+            root: rootSymbol(symbol),
+            direction: f.side === 'Buy' ? 'Long' : 'Short',
+            qty: f.qty,
+            entryNotional: f.price * f.qty,
+            entryTime: f.time,
+            entryOrderIds: [f.orderId],
+            exitOrderIds: []
+          };
+          position += signed;
+        } else {
+          var sameDir = (position > 0 && signed > 0) || (position < 0 && signed < 0);
+          if (sameDir) {
+            current.qty += f.qty;
+            current.entryNotional += f.price * f.qty;
+            current.entryOrderIds.push(f.orderId);
+            position += signed;
+          } else {
+            current.exitNotional = (current.exitNotional || 0) + f.price * f.qty;
+            current.exitQty = (current.exitQty || 0) + f.qty;
+            current.exitOrderIds.push(f.orderId);
+            current.exitTime = f.time;
+            position += signed;
+            if (Math.abs(position) < 1e-9) {
+              current.entryPrice = current.entryNotional / current.qty;
+              current.exitPrice = current.exitNotional / current.exitQty;
+              current.id = current.entryOrderIds[0] + '-' + current.exitOrderIds[current.exitOrderIds.length-1];
+              trades.push(current);
+              current = null;
+              position = 0;
+            }
+          }
+        }
+      });
+      if (current) {
+        current.open = true;
+        current.entryPrice = current.entryNotional / current.qty;
+        current.id = current.entryOrderIds[0] + '-open';
+        trades.push(current);
+      }
+    });
+    return trades;
+  }
+
+  function multiplierFor(root){
+    if (state.multipliers[root] !== undefined) return state.multipliers[root];
+    if (DEFAULT_MULT[root] !== undefined) return DEFAULT_MULT[root];
+    return 1;
+  }
+
+  function pnlFor(t){
+    if (t.open) return null;
+    var pts = t.direction === 'Long' ? (t.exitPrice - t.entryPrice) : (t.entryPrice - t.exitPrice);
+    var mult = multiplierFor(t.root);
+    return { points: pts, dollars: pts * t.qty * mult };
+  }
+
+  async function save(){
+    try { await window.storage.set('trades', JSON.stringify(state.trades), false); } catch(e){}
+    try { await window.storage.set('multipliers', JSON.stringify(state.multipliers), false); } catch(e){}
+  }
+
+  async function saveTheme(){
+    try { await window.storage.set('theme', state.theme, false); } catch(e){}
+  }
+
+  function applyTheme(){
+    root.setAttribute('data-theme', state.theme);
+    var btn = document.getElementById('tj-theme');
+    btn.textContent = state.theme === 'dark' ? 'Light mode' : 'Dark mode';
+    renderEquity();
+  }
+
+  async function load(){
+    try {
+      var r = await window.storage.get('trades', false);
+      if (r && r.value) state.trades = JSON.parse(r.value).map(function(t){
+        t.entryTime = new Date(t.entryTime);
+        if (t.exitTime) t.exitTime = new Date(t.exitTime);
+        return t;
+      });
+    } catch(e){ state.trades = []; }
+    try {
+      var m = await window.storage.get('multipliers', false);
+      if (m && m.value) state.multipliers = JSON.parse(m.value);
+    } catch(e){ state.multipliers = {}; }
+    try {
+      var th = await window.storage.get('theme', false);
+      if (th && th.value) state.theme = th.value;
+    } catch(e){
+      state.theme = matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+  }
+
+  function mergeTrades(newTrades){
+    var existingIds = {};
+    state.trades.forEach(function(t){ existingIds[t.id] = true; });
+    newTrades.forEach(function(t){ if (!existingIds[t.id]) state.trades.push(t); });
+  }
+
+  function renderStats(){
+    var closed = state.trades.filter(function(t){ return !t.open; });
+    var wins = 0, losses = 0, grossProfit = 0, grossLoss = 0, net = 0;
+    closed.forEach(function(t){
+      var p = pnlFor(t);
+      net += p.dollars;
+      if (p.dollars > 0) { wins++; grossProfit += p.dollars; }
+      else if (p.dollars < 0) { losses++; grossLoss += Math.abs(p.dollars); }
+    });
+    var winRate = closed.length ? (wins/closed.length*100) : 0;
+    var avgWin = wins ? grossProfit/wins : 0;
+    var avgLoss = losses ? grossLoss/losses : 0;
+    var pf = grossLoss > 0 ? (grossProfit/grossLoss) : (grossProfit > 0 ? Infinity : 0);
+
+    var cards = [
+      {label:'Net P&L', value: fmtMoney(net), color: net>=0 ? 'var(--credit)':'var(--debit)'},
+      {label:'Win rate', value: winRate.toFixed(0)+'%', color:'var(--ink)'},
+      {label:'Trades closed', value: closed.length, color:'var(--ink)'},
+      {label:'Avg win', value: fmtMoney(avgWin), color:'var(--credit)'},
+      {label:'Avg loss', value: fmtMoney(-avgLoss), color:'var(--debit)'},
+      {label:'Profit factor', value: isFinite(pf) ? pf.toFixed(2) : '\u221E', color:'var(--ink)'}
+    ];
+    var el = document.getElementById('tj-stats');
+    el.innerHTML = cards.map(function(c){
+      return '<div style="background:var(--card-bg); padding:12px 14px;">'+
+        '<div style="font-size:10px; text-transform:uppercase; letter-spacing:1px; color:var(--ink-soft); margin-bottom:4px;">'+c.label+'</div>'+
+        '<div class="mono" style="font-size:18px; font-weight:bold; color:'+c.color+';">'+c.value+'</div>'+
+      '</div>';
+    }).join('');
+  }
+
+  function renderEquity(){
+    var closed = state.trades.filter(function(t){ return !t.open; }).slice().sort(function(a,b){ return a.exitTime - b.exitTime; });
+    var svg = document.getElementById('tj-equity');
+    var mutedColor = getComputedStyle(root).getPropertyValue('--ink-soft').trim() || '#8B9A88';
+    if (!closed.length) { svg.innerHTML = '<text x="350" y="105" text-anchor="middle" fill="'+mutedColor+'" font-size="13" font-family="Georgia,serif">No closed trades yet</text>'; return; }
+    var cum = 0, pts = [0];
+    closed.forEach(function(t){ cum += pnlFor(t).dollars; pts.push(cum); });
+    var min = Math.min.apply(null, pts), max = Math.max.apply(null, pts);
+    var range = (max - min) || 1;
+    var w = 700, h = 200, padL = 10, padR = 10, padT = 15, padB = 15;
+    var innerW = w - padL - padR, innerH = h - padT - padB;
+    var stepX = innerW / (pts.length - 1);
+    var toY = function(v){ return padT + innerH - ((v - min) / range) * innerH; };
+    var d = pts.map(function(v,i){ return (i===0?'M':'L') + (padL + i*stepX).toFixed(1) + ',' + toY(v).toFixed(1); }).join(' ');
+    var zeroY = toY(0).toFixed(1);
+    var lineColor = getComputedStyle(root).getPropertyValue(cum >= 0 ? '--credit' : '--debit').trim();
+    var dashColor = getComputedStyle(root).getPropertyValue('--muted-line').trim();
+    svg.innerHTML =
+      '<line x1="'+padL+'" y1="'+zeroY+'" x2="'+(w-padR)+'" y2="'+zeroY+'" stroke="'+dashColor+'" stroke-width="1" stroke-dasharray="3,3"/>' +
+      '<path d="'+d+'" fill="none" stroke="'+lineColor+'" stroke-width="2"/>' +
+      '<circle cx="'+(padL+(pts.length-1)*stepX).toFixed(1)+'" cy="'+toY(cum).toFixed(1)+'" r="4" fill="'+lineColor+'"/>';
+  }
+
+  function renderMultipliers(){
+    var roots = {};
+    state.trades.forEach(function(t){ roots[t.root] = true; });
+    Object.keys(DEFAULT_MULT).forEach(function(r){ roots[r] = true; });
+    var el = document.getElementById('tj-multipliers');
+    el.innerHTML = Object.keys(roots).sort().map(function(r){
+      var v = multiplierFor(r);
+      return '<div style="display:flex; align-items:center; justify-content:space-between; gap:6px; font-size:12px; background:var(--card-bg); padding:6px 10px; border-radius:3px;">'+
+        '<span class="mono">'+r+'</span>'+
+        '<input type="number" step="0.01" value="'+v+'" data-root="'+r+'" style="width:70px; font-size:12px; padding:3px 6px; border:1px solid var(--input-border); border-radius:3px; background:var(--input-bg); color:var(--ink);">'+
+      '</div>';
+    }).join('');
+    el.querySelectorAll('input').forEach(function(inp){
+      inp.addEventListener('change', function(){
+        var r2 = inp.getAttribute('data-root');
+        var val = parseFloat(inp.value);
+        if (!isNaN(val)) { state.multipliers[r2] = val; save(); renderAll(); }
+      });
+    });
+  }
+
+  function renderTable(){
+    var tbody = document.getElementById('tj-tbody');
+    var empty = document.getElementById('tj-empty');
+    var sorted = state.trades.slice().sort(function(a,b){
+      var ta = a.exitTime || a.entryTime, tb = b.exitTime || b.entryTime;
+      return tb - ta;
+    });
+    if (!sorted.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+    tbody.innerHTML = sorted.map(function(t){
+      var dateStr = (t.exitTime || t.entryTime).toLocaleDateString();
+      var p = pnlFor(t);
+      var ptsStr = p ? fmtPts(p.points) : '\u2014';
+      var pnlStr = p ? fmtMoney(p.dollars) : 'OPEN';
+      var pnlColor = t.open ? 'var(--ink-soft)' : (p.dollars >= 0 ? 'var(--credit)' : 'var(--debit)');
+      return '<tr style="border-bottom:1px solid var(--row-border);">'+
+        '<td style="padding:6px 8px;">'+dateStr+'</td>'+
+        '<td style="padding:6px 8px;">'+t.symbol+'</td>'+
+        '<td style="padding:6px 8px;">'+t.direction+'</td>'+
+        '<td style="padding:6px 8px; text-align:right;">'+t.qty+'</td>'+
+        '<td style="padding:6px 8px; text-align:right;">'+t.entryPrice.toFixed(2)+'</td>'+
+        '<td style="padding:6px 8px; text-align:right;">'+(t.exitPrice!==undefined? t.exitPrice.toFixed(2) : '\u2014')+'</td>'+
+        '<td style="padding:6px 8px; text-align:right;">'+ptsStr+'</td>'+
+        '<td style="padding:6px 8px; text-align:right; color:'+pnlColor+'; font-weight:bold;">'+pnlStr+'</td>'+
+      '</tr>';
+    }).join('');
+  }
+
+  function renderAll(){
+    renderStats();
+    renderEquity();
+    renderMultipliers();
+    renderTable();
+    document.getElementById('tj-lastupdate').textContent = state.trades.length ? ('entries: ' + state.trades.length) : '';
+  }
+
+  function handleParse(text){
+    var msg = document.getElementById('tj-parsemsg');
+    try {
+      var rows = parseCSV(text);
+      if (!rows.length) { msg.textContent = 'No rows found in that CSV.'; return; }
+      var newTrades = reconstructTrades(rows);
+      if (!newTrades.length) { msg.textContent = 'No filled orders found to reconstruct trades from.'; return; }
+      mergeTrades(newTrades);
+      save();
+      renderAll();
+      msg.textContent = '';
+      document.getElementById('tj-paste').value = '';
+      document.getElementById('tj-status').textContent = 'Posted ' + newTrades.length + ' trade(s) to the ledger.';
+    } catch(e) {
+      msg.textContent = 'Could not parse that CSV — check the format.';
+    }
+  }
+
+  document.getElementById('tj-file').addEventListener('change', function(e){
+    var f = e.target.files[0];
+    if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function(){ document.getElementById('tj-paste').value = reader.result; };
+    reader.readAsText(f);
+  });
+
+  document.getElementById('tj-post').addEventListener('click', function(){
+    var text = document.getElementById('tj-paste').value;
+    if (!text.trim()) { document.getElementById('tj-parsemsg').textContent = 'Paste CSV text or choose a file first.'; return; }
+    handleParse(text);
+  });
+
+  document.getElementById('tj-clear').addEventListener('click', function(){
+    if (!confirm('Clear every entry in the ledger? This cannot be undone.')) return;
+    state.trades = [];
+    save();
+    renderAll();
+    document.getElementById('tj-status').textContent = 'Ledger cleared.';
+  });
+
+  document.getElementById('tj-theme').addEventListener('click', function(){
+    state.theme = state.theme === 'dark' ? 'light' : 'dark';
+    applyTheme();
+    saveTheme();
+  });
+
+  load().then(function(){
+    applyTheme();
+    document.getElementById('tj-status').textContent = state.trades.length ? ('Ledger loaded — ' + state.trades.length + ' entries on file.') : 'Ledger is empty. Post your first day above.';
+    renderAll();
+  });
+})();
+</script>
