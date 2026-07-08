@@ -29,7 +29,7 @@
     #tj-root .mono { font-family: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace; }
     #tj-root button { font-family: inherit; cursor: pointer; }
     #tj-root input, #tj-root textarea { font-family: inherit; }
-    #tj-root table { border-collapse: collapse; width: 100%; }
+    #tj-root table { border-collapse: collapse; width: 100%; color: var(--text); }
     #tj-root ::placeholder { color: var(--text-faint); }
     #tj-root .shell { background: var(--bg); border-radius: 20px; padding: 28px; transition: background 0.25s ease; }
     #tj-root .card { background: var(--card); border: 1px solid var(--card-border); border-radius: 14px; box-shadow: var(--shadow); }
@@ -411,12 +411,12 @@
       var sideColor = t.direction === 'Long' ? 'var(--credit)' : 'var(--debit)';
       return '<tr style="border-bottom:1px solid var(--row-border);">'+
         '<td style="padding:9px 8px; color:var(--text-soft);">'+dateStr+'</td>'+
-        '<td style="padding:9px 8px; font-weight:600;">'+t.symbol+'</td>'+
+        '<td style="padding:9px 8px; font-weight:600; color:var(--text);">'+t.symbol+'</td>'+
         '<td style="padding:9px 8px; color:'+sideColor+';">'+t.direction+'</td>'+
-        '<td style="padding:9px 8px; text-align:right;">'+t.qty+'</td>'+
-        '<td style="padding:9px 8px; text-align:right;">'+t.entryPrice.toFixed(2)+'</td>'+
-        '<td style="padding:9px 8px; text-align:right;">'+(t.exitPrice!==undefined? t.exitPrice.toFixed(2) : '\u2014')+'</td>'+
-        '<td style="padding:9px 8px; text-align:right;">'+ptsStr+'</td>'+
+        '<td style="padding:9px 8px; text-align:right; color:var(--text);">'+t.qty+'</td>'+
+        '<td style="padding:9px 8px; text-align:right; color:var(--text);">'+t.entryPrice.toFixed(2)+'</td>'+
+        '<td style="padding:9px 8px; text-align:right; color:var(--text);">'+(t.exitPrice!==undefined? t.exitPrice.toFixed(2) : '\u2014')+'</td>'+
+        '<td style="padding:9px 8px; text-align:right; color:var(--text);">'+ptsStr+'</td>'+
         '<td style="padding:9px 8px; text-align:right; color:'+pnlColor+'; font-weight:700;">'+pnlStr+'</td>'+
       '</tr>';
     }).join('');
